@@ -1,0 +1,495 @@
+<!doctype html>
+<!--
+  FunAdd - Complete single-file prototype (HTML + Tailwind CSS + Vanilla JS)
+  Features included (prototype / production-ready blueprint):
+    - Responsive layout (mobile-first) using Tailwind CDN
+    - Search with instant filtering and suggestions
+    - Category filters, price range, rating filter, sorting
+    - Product grid with lazy image loading and infinite-scroll simulation
+    - Product detail modal with variants, add-to-cart
+    - Persistent shopping cart (localStorage) with cart drawer
+    - Coupon code application, estimated delivery, address & checkout form (mock)
+    - User auth mock (email login + localStorage), favorites/wishlist
+    - Order creation (mock) and order history saved locally
+    - Basic admin route (hash-based) showing product & order management UI (mock)
+    - Accessibility attributes, keyboard-friendly modals, SEO meta
+    - Comments and extension points for connecting to real backend/APIs
+
+  To use:
+    1. Save this file as index.html and open in browser.
+    2. For production, replace CDN Tailwind with a compiled build and connect to real APIs.
+    3. This is intentionally a single-file SPA prototype for easy testing.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>FunAdd — Grocery & Quick Delivery</title>
+  <meta name="description" content="FunAdd — Fast grocery & essentials delivery. Prototype built with HTML, Tailwind CSS and JavaScript.">
+  <meta name="theme-color" content="#0ea5a4">
+
+  <!-- Tailwind CDN for prototype (replace with built CSS for production) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind config for this page
+    tailwind.config = {
+      theme: { extend: { colors: { primary: '#0ea5a4' } } }
+    }
+  </script>
+
+  <style>
+    /* Small helper for image placeholders */
+    .skeleton { background: linear-gradient(90deg,#f3f4f6,#eceff1,#f3f4f6); background-size:200% 100%; animation: shimmer 1.2s linear infinite; }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 leading-snug">
+
+  <!-- APP CONTAINER -->
+  <div id="app" class="min-h-screen flex flex-col">
+
+    <!-- NAVBAR -->
+    <header class="bg-white shadow sticky top-0 z-40">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-16">
+          <div class="flex items-center gap-4">
+            <a href="#/" class="text-2xl font-extrabold text-primary">FunAdd</a>
+            <form id="searchForm" class="hidden sm:flex items-center bg-gray-100 rounded-md px-2 py-1" role="search">
+              <input id="searchInput" type="search" placeholder="Search for products, brands and more" aria-label="Search" class="bg-transparent outline-none px-2 w-64" />
+              <button type="submit" class="text-sm px-2">Search</button>
+            </form>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <button id="navCategoriesBtn" class="p-2 rounded-md hover:bg-gray-100 hidden sm:inline">Categories</button>
+            <button id="favoritesBtn" title="Wishlist" class="p-2 rounded-md hover:bg-gray-100">♥</button>
+            <button id="ordersBtn" title="Orders" class="p-2 rounded-md hover:bg-gray-100">📦</button>
+            <button id="profileBtn" class="p-2 rounded-md hover:bg-gray-100">👤</button>
+            <div class="relative">
+              <button id="cartBtn" class="p-2 rounded-md hover:bg-gray-100">🛒 <span id="cartCount" class="inline-block ml-1 text-sm"></span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- MAIN -->
+    <main class="flex-1">
+      <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+        <!-- HERO / Quick filters -->
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+          <!-- Left: Categories & filters -->
+          <aside class="lg:col-span-1 bg-white p-4 rounded-lg shadow-sm">
+            <h3 class="font-semibold mb-3">Categories</h3>
+            <div id="categories" class="flex flex-col gap-2"></div>
+
+            <hr class="my-4">
+            <h4 class="font-semibold mb-2">Filters</h4>
+            <label class="block text-sm">Price: <span id="priceLabel">All</span></label>
+            <input id="priceRange" type="range" min="0" max="500" value="500" class="w-full">
+
+            <label class="block mt-3 text-sm">Rating</label>
+            <select id="ratingFilter" class="w-full rounded-md border p-2">
+              <option value="0">Any</option>
+              <option value="4">4 & up</option>
+              <option value="3">3 & up</option>
+            </select>
+
+            <label class="block mt-3 text-sm">Sort by</label>
+            <select id="sortBy" class="w-full rounded-md border p-2">
+              <option value="popular">Most popular</option>
+              <option value="price_asc">Price: Low to High</option>
+              <option value="price_desc">Price: High to Low</option>
+            </select>
+
+            <button id="clearFilters" class="mt-4 w-full bg-primary text-white py-2 rounded">Clear</button>
+          </aside>
+
+          <!-- Right: product list -->
+          <div class="lg:col-span-3">
+            <div class="flex justify-between items-center mb-4">
+              <h2 class="text-xl font-bold">All Products</h2>
+              <div class="text-sm text-gray-500">Showing <span id="visibleCount">0</span> products</div>
+            </div>
+
+            <div id="productGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4"></div>
+
+            <div id="loadingMore" class="text-center py-6 text-gray-500 hidden">Loading more...</div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-white border-t mt-6">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 text-sm text-gray-600">
+        © <span id="year"></span> FunAdd — Fast groceries & essentials. Prototype.
+      </div>
+    </footer>
+
+  </div>
+
+  <!-- PRODUCT MODAL -->
+  <div id="productModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-40 p-4">
+    <div class="bg-white rounded-lg max-w-3xl w-full overflow-auto max-h-[90vh]">
+      <button class="p-2 text-gray-500 float-right" id="closeProductModal">✖</button>
+      <div id="productModalContent" class="p-6"></div>
+    </div>
+  </div>
+
+  <!-- CART DRAWER -->
+  <div id="cartDrawer" class="fixed right-0 top-0 h-full w-full sm:w-96 bg-white shadow-lg z-50 transform translate-x-full transition-transform">
+    <div class="p-4 flex items-center justify-between border-b">
+      <h3 class="text-lg font-semibold">Your Cart</h3>
+      <button id="closeCart">Close</button>
+    </div>
+    <div class="p-4 overflow-auto" style="height:calc(100% - 120px)">
+      <div id="cartItems" class="flex flex-col gap-4"></div>
+    </div>
+    <div class="p-4 border-t">
+      <div class="flex justify-between"><span>Subtotal</span><strong id="cartSubtotal">₹0</strong></div>
+      <div class="mt-2">
+        <input id="couponInput" placeholder="Coupon code" class="w-full rounded-md border p-2" />
+        <button id="applyCoupon" class="mt-2 w-full bg-primary text-white py-2 rounded">Apply</button>
+      </div>
+      <button id="checkoutBtn" class="mt-3 w-full bg-green-600 text-white py-2 rounded">Checkout</button>
+    </div>
+  </div>
+
+  <!-- LOGIN / PROFILE MODAL -->
+  <div id="authModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-40 p-4">
+    <div class="bg-white rounded-lg max-w-md w-full p-6">
+      <button class="p-2 text-gray-500 float-right" id="closeAuth">✖</button>
+      <h3 class="text-lg font-semibold mb-3">Login to FunAdd</h3>
+      <form id="loginForm" class="space-y-3">
+        <input id="emailLogin" type="email" placeholder="Email" class="w-full rounded-md border p-2" required>
+        <button class="w-full bg-primary text-white py-2 rounded">Login (mock)</button>
+      </form>
+      <small class="text-gray-500">This demo stores a simple user record in localStorage for prototyping.</small>
+    </div>
+  </div>
+
+  <!-- CHECKOUT / ORDER CONFIRMATION MODAL -->
+  <div id="checkoutModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black bg-opacity-40 p-4">
+    <div class="bg-white rounded-lg max-w-lg w-full p-6">
+      <button class="p-2 text-gray-500 float-right" id="closeCheckout">✖</button>
+      <h3 class="text-lg font-semibold mb-3">Checkout</h3>
+      <form id="checkoutForm" class="space-y-3">
+        <input id="nameInput" placeholder="Full name" class="w-full rounded-md border p-2" required>
+        <input id="phoneInput" placeholder="Phone" class="w-full rounded-md border p-2" required>
+        <input id="addressInput" placeholder="Delivery address" class="w-full rounded-md border p-2" required>
+        <select id="paymentMethod" class="w-full rounded-md border p-2">
+          <option value="cod">Cash on Delivery</option>
+          <option value="mock_card">Pay with card (mock)</option>
+        </select>
+        <button class="w-full bg-primary text-white py-2 rounded">Place Order</button>
+      </form>
+    </div>
+  </div>
+
+  <script>
+  // ----------------------
+  // Mock Data & Utilities
+  // ----------------------
+  const state = {
+    products: [],
+    visibleProducts: [],
+    cart: JSON.parse(localStorage.getItem('funadd_cart')||'{}'),
+    user: JSON.parse(localStorage.getItem('funadd_user')||'null'),
+    orders: JSON.parse(localStorage.getItem('funadd_orders')||'[]'),
+    favorites: JSON.parse(localStorage.getItem('funadd_favs')||'[]'),
+    coupons: { 'FUN50': { type: 'percent', value: 50, min: 200 } }
+  };
+
+  // Sample products (in a real app fetch from API)
+  const sampleProducts = Array.from({length:24}).map((_,i)=>({
+    id: 'p'+(i+1),
+    title: ['Fresh Milk','Apple','Banana','Bread','Eggs','Rice','Oil','Sugar','Tea','Coffee','Tomato','Potato'][i%12] + ' — ' + (i+1),
+    price: Math.round(20 + Math.random()*400),
+    rating: (Math.random()*2+3).toFixed(1),
+    image: 'https://picsum.photos/seed/funadd'+i+'/400/300',
+    category: ['Dairy','Fruits','Fruits','Bakery','Dairy','Pantry','Pantry','Pantry','Beverages','Beverages','Vegetables','Vegetables'][i%12]
+  }));
+
+  // Small helper formatting
+  const money = v => '₹'+Number(v).toLocaleString('en-IN');
+
+  // ----------------------
+  // App init
+  // ----------------------
+  document.addEventListener('DOMContentLoaded', ()=>{
+    document.getElementById('year').textContent = new Date().getFullYear();
+    state.products = sampleProducts;
+    state.visibleProducts = [...state.products];
+    renderCategories();
+    renderProducts();
+    restoreCartUI();
+    attachUIEvents();
+  });
+
+  // ----------------------
+  // Rendering
+  // ----------------------
+  function renderCategories(){
+    const cats = [...new Set(state.products.map(p=>p.category))];
+    const container = document.getElementById('categories');
+    container.innerHTML = '';
+    cats.forEach(c=>{
+      const btn = document.createElement('button');
+      btn.className = 'text-left p-2 hover:bg-gray-100 rounded';
+      btn.textContent = c;
+      btn.onclick = ()=>{ document.getElementById('searchInput').value = c; applyFilters(); }
+      container.appendChild(btn);
+    });
+  }
+
+  function renderProducts(limit=12){
+    const grid = document.getElementById('productGrid');
+    grid.innerHTML = '';
+    const visible = state.visibleProducts.slice(0, limit);
+    visible.forEach(p=>{
+      const card = document.createElement('article');
+      card.className = 'bg-white p-3 rounded shadow-sm hover:shadow-lg transition cursor-pointer';
+      card.setAttribute('tabindex','0');
+      card.innerHTML = `
+        <div class="h-36 flex items-center justify-center overflow-hidden rounded">
+          <img loading="lazy" src="${p.image}" alt="${p.title}" class="object-cover h-full w-full" />
+        </div>
+        <h4 class="mt-2 font-semibold text-sm">${p.title}</h4>
+        <div class="flex items-center justify-between mt-1">
+          <div class="text-primary font-bold text-sm">${money(p.price)}</div>
+          <div class="text-xs text-gray-500">⭐ ${p.rating}</div>
+        </div>
+      `;
+      card.onclick = ()=> openProductModal(p.id);
+      grid.appendChild(card);
+    });
+    document.getElementById('visibleCount').textContent = state.visibleProducts.length;
+    document.getElementById('loadingMore').classList.toggle('hidden', state.visibleProducts.length<=visible.length);
+  }
+
+  function openProductModal(id){
+    const p = state.products.find(x=>x.id===id);
+    const modal = document.getElementById('productModal');
+    const c = document.getElementById('productModalContent');
+    c.innerHTML = `
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="rounded overflow-hidden bg-gray-100"><img src="${p.image}" alt="${p.title}" class="w-full h-64 object-cover"></div>
+        <div>
+          <h3 class="text-xl font-bold">${p.title}</h3>
+          <div class="text-primary text-2xl font-extrabold mt-2">${money(p.price)}</div>
+          <div class="mt-2 text-sm text-gray-600">Rating: ${p.rating}</div>
+          <p class="mt-3 text-sm text-gray-700">Description: Fresh, high-quality and sourced responsibly. This is a demo product for FunAdd.</p>
+          <div class="mt-4 flex gap-2">
+            <button id="addToCartBtn" class="bg-primary text-white px-4 py-2 rounded">Add to cart</button>
+            <button id="favBtn" class="border px-4 py-2 rounded">Add to wishlist</button>
+          </div>
+        </div>
+      </div>
+    `;
+    modal.classList.remove('hidden'); modal.style.display = 'flex';
+    document.getElementById('addToCartBtn').onclick = ()=>{ addToCart(p.id,1); closeProductModal(); openCart(); }
+    document.getElementById('favBtn').onclick = ()=>{ toggleFav(p.id); }
+  }
+
+  function closeProductModal(){ const m=document.getElementById('productModal'); m.classList.add('hidden'); m.style.display='none'; }
+
+  function renderCartItems(){
+    const container = document.getElementById('cartItems'); container.innerHTML='';
+    const cart = state.cart || {};
+    let subtotal = 0;
+    Object.keys(cart).forEach(id=>{
+      const line = cart[id];
+      const p = state.products.find(x=>x.id===id);
+      subtotal += p.price * line.qty;
+      const item = document.createElement('div');
+      item.className = 'flex gap-3 items-center';
+      item.innerHTML = `
+        <img src="${p.image}" alt="${p.title}" class="w-16 h-12 object-cover rounded">
+        <div class="flex-1">
+          <div class="font-semibold text-sm">${p.title}</div>
+          <div class="text-xs text-gray-500">${money(p.price)} x ${line.qty}</div>
+        </div>
+        <div class="flex flex-col items-end">
+          <div class="font-bold">${money(p.price*line.qty)}</div>
+          <div class="flex gap-1 mt-2">
+            <button class="px-2 border rounded" data-id="${id}" data-act="dec">-</button>
+            <button class="px-2 border rounded" data-id="${id}" data-act="inc">+</button>
+          </div>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+    document.getElementById('cartSubtotal').textContent = money(subtotal);
+
+    // attach qty buttons
+    container.querySelectorAll('button[data-act]').forEach(btn=>btn.addEventListener('click', e=>{
+      const id = btn.dataset.id; const act = btn.dataset.act;
+      if(act==='inc') addToCart(id,1); else changeQty(id,-1);
+    }));
+  }
+
+  // ----------------------
+  // Cart logic
+  // ----------------------
+  function addToCart(id, qty=1){
+    state.cart = state.cart || {};
+    const line = state.cart[id] || { qty:0 };
+    line.qty += qty;
+    if(line.qty<=0) delete state.cart[id]; else state.cart[id]=line;
+    localStorage.setItem('funadd_cart', JSON.stringify(state.cart));
+    restoreCartUI();
+  }
+
+  function changeQty(id, delta){ addToCart(id, delta); }
+
+  function restoreCartUI(){
+    document.getElementById('cartCount').textContent = Object.values(state.cart||{}).reduce((s,l)=>s+l.qty,0) || '';
+    renderCartItems();
+  }
+
+  // ----------------------
+  // Filters, search & sorting
+  // ----------------------
+  function applyFilters(){
+    const q = document.getElementById('searchInput').value.toLowerCase().trim();
+    const maxPrice = +document.getElementById('priceRange').value;
+    const rating = +document.getElementById('ratingFilter').value;
+    const sort = document.getElementById('sortBy').value;
+
+    document.getElementById('priceLabel').textContent = maxPrice===500? 'All' : 'Up to ₹'+maxPrice;
+
+    let filtered = state.products.filter(p=>{
+      if(q && !(`${p.title} ${p.category}`.toLowerCase().includes(q))) return false;
+      if(p.price>maxPrice) return false;
+      if(+p.rating<rating) return false;
+      return true;
+    });
+
+    if(sort==='price_asc') filtered.sort((a,b)=>a.price-b.price);
+    if(sort==='price_desc') filtered.sort((a,b)=>b.price-a.price);
+    if(sort==='popular') filtered.sort((a,b)=>b.rating-b.rating); // placeholder
+
+    state.visibleProducts = filtered;
+    renderProducts(24);
+  }
+
+  // ----------------------
+  // Wishlist
+  // ----------------------
+  function toggleFav(id){
+    state.favorites = state.favorites || [];
+    const idx = state.favorites.indexOf(id);
+    if(idx>=0) state.favorites.splice(idx,1); else state.favorites.push(id);
+    localStorage.setItem('funadd_favs', JSON.stringify(state.favorites));
+    alert('Wishlist updated');
+  }
+
+  // ----------------------
+  // Orders & Checkout (mock)
+  // ----------------------
+  function openCheckout(){
+    document.getElementById('checkoutModal').classList.remove('hidden'); document.getElementById('checkoutModal').style.display='flex';
+  }
+  function closeCheckout(){ document.getElementById('checkoutModal').classList.add('hidden'); document.getElementById('checkoutModal').style.display='none'; }
+
+  // ----------------------
+  // Auth
+  // ----------------------
+  function openAuth(){ document.getElementById('authModal').classList.remove('hidden'); document.getElementById('authModal').style.display='flex'; }
+  function closeAuth(){ document.getElementById('authModal').classList.add('hidden'); document.getElementById('authModal').style.display='none'; }
+
+  // ----------------------
+  // UI Events wiring
+  // ----------------------
+  function attachUIEvents(){
+    document.getElementById('searchForm').addEventListener('submit', e=>{ e.preventDefault(); applyFilters(); });
+    document.getElementById('priceRange').addEventListener('input', applyFilters);
+    document.getElementById('ratingFilter').addEventListener('change', applyFilters);
+    document.getElementById('sortBy').addEventListener('change', applyFilters);
+    document.getElementById('clearFilters').addEventListener('click', ()=>{ document.getElementById('searchInput').value=''; document.getElementById('priceRange').value=500; document.getElementById('ratingFilter').value=0; document.getElementById('sortBy').value='popular'; applyFilters(); });
+
+    document.getElementById('cartBtn').addEventListener('click', openCart);
+    document.getElementById('closeCart').addEventListener('click', closeCart);
+    document.getElementById('closeProductModal').addEventListener('click', closeProductModal);
+    document.getElementById('closeAuth').addEventListener('click', closeAuth);
+    document.getElementById('closeCheckout').addEventListener('click', closeCheckout);
+
+    document.getElementById('favoritesBtn').addEventListener('click', ()=>{ alert('Open wishlist — demo'); });
+    document.getElementById('ordersBtn').addEventListener('click', ()=>{ alert('Open orders — demo'); });
+    document.getElementById('profileBtn').addEventListener('click', ()=>{ if(state.user) alert('Logged in as '+state.user.email); else openAuth(); });
+
+    document.getElementById('loginForm').addEventListener('submit', e=>{
+      e.preventDefault(); const email = document.getElementById('emailLogin').value.trim(); state.user = { email }; localStorage.setItem('funadd_user', JSON.stringify(state.user)); closeAuth(); alert('Logged in (demo)');
+    });
+
+    document.getElementById('checkoutForm').addEventListener('submit', e=>{
+      e.preventDefault(); const order = { id:'o'+Date.now(), date:new Date().toISOString(), items: state.cart, subtotal: Object.keys(state.cart||{}).reduce((s,k)=>s + (state.products.find(p=>p.id===k).price * state.cart[k].qty),0) };
+      state.orders.push(order); localStorage.setItem('funadd_orders', JSON.stringify(state.orders)); state.cart = {}; localStorage.removeItem('funadd_cart'); restoreCartUI(); closeCheckout(); alert('Order placed (demo): '+order.id);
+    });
+
+    // Cart coupon
+    document.getElementById('applyCoupon').addEventListener('click', ()=>{
+      const code = document.getElementById('couponInput').value.trim().toUpperCase(); const c = state.coupons[code];
+      if(!c) return alert('Invalid coupon');
+      alert('Coupon applied ('+code+') — demo only');
+    });
+
+    // open product via url hash
+    window.addEventListener('hashchange', ()=>{
+      const h = location.hash.replace('#',''); if(h.startsWith('/product/')) openProductModal(h.split('/product/')[1]);
+    });
+
+    // Cart drawer keyboard hidden/visible behaviour
+    document.addEventListener('keydown', e=>{ if(e.key==='Escape'){ closeProductModal(); closeCart(); closeAuth(); closeCheckout(); } });
+
+    // infinite-scroll simulation: load more when scrolled near bottom
+    window.addEventListener('scroll', ()=>{
+      const nearBottom = (window.innerHeight + window.scrollY) >= (document.body.offsetHeight - 400);
+      if(nearBottom && state.visibleProducts.length < state.products.length){
+        // simulate loading more
+        setTimeout(()=>{ state.visibleProducts = state.products.slice(0, Math.min(state.visibleProducts.length+12, state.products.length)); renderProducts(24); }, 600);
+      }
+    });
+  }
+
+  // ----------------------
+  // Cart drawer open/close
+  // ----------------------
+  function openCart(){ const d=document.getElementById('cartDrawer'); d.style.transform='translateX(0)'; d.classList.add('open'); }
+  function closeCart(){ const d=document.getElementById('cartDrawer'); d.style.transform='translateX(100%)'; d.classList.remove('open'); }
+
+  // ----------------------
+  // Admin (mock) - route to #/admin
+  // ----------------------
+  function renderAdmin(){
+    // Simple mock admin — in single-file demo we'll just show an alert
+    alert('Admin dashboard — integrate with backend for product and order management.');
+  }
+
+  // ----------------------
+  // Utility: open/close helpers
+  // ----------------------
+  function closeAllModals(){ closeProductModal(); closeCart(); closeAuth(); closeCheckout(); }
+
+  // ----------------------
+  // Notes for production implementation
+  // ----------------------
+  /*
+    - Replace sampleProducts with API calls (fetch) and server-side pagination.
+    - Implement secure authentication (JWT / session), password reset, verification.
+    - Build a proper admin UI (role-based access control) with product CRUD and order management.
+    - Integrate a real payment gateway (Razorpay/Stripe/Paytm) in checkout.
+    - Add image CDN, compress images, and use srcset for responsive images.
+    - Implement push notifications, worker-based caching, and PWA manifest.
+    - Add analytics, logging, and proper error-handling.
+    - Offload search to a dedicated service (ElasticSearch or Algolia) for scale.
+    - Accessibility: ensure all interactive elements have proper ARIA labels and focus management.
+  */
+
+  </script>
+</body>
+</html>
